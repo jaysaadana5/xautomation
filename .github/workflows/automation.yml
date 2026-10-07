@@ -1,0 +1,61 @@
+name: Cloud automation
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run without posting or calling webhooks"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cloud-automation
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      X_API_KEY: ${{ secrets.X_API_KEY }}
+      X_API_SECRET: ${{ secrets.X_API_SECRET }}
+      X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+      X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+      AUTOMATION_WEBHOOK_URL: ${{ secrets.AUTOMATION_WEBHOOK_URL }}
+      AUTOMATION_WEBHOOK_TOKEN: ${{ secrets.AUTOMATION_WEBHOOK_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run tests
+        run: python -m unittest discover -s tests
+        env:
+          PYTHONPATH: src
+      - name: Run due tasks
+        run: |
+          args=()
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+          PYTHONPATH=src python -m xautomation.runner "${args[@]}"
+      - name: Save completed-task state
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+        run: |
+          if git diff --quiet -- automation-state.json; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add automation-state.json
+          git commit -m "Record completed automation tasks"
+          git push
+

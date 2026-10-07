@@ -1,0 +1,20 @@
+[project]
+name = "xautomation"
+version = "0.1.0"
+description = "Cloud-scheduled X posting and webhook automation"
+requires-python = ">=3.11"
+
+[project.scripts]
+xautomation = "xautomation.runner:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
